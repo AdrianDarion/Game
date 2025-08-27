@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Browser FPS - Large Map Gun Game</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #000;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        color: #fff;
+      }
+
+      #game {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+      }
+
+      canvas {
+        display: block;
+      }
+
+      /* HUD */
+      .hud {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        padding: 16px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        pointer-events: none;
+        text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+      }
+
+      .hud .stats {
+        display: flex;
+        gap: 16px;
+        align-items: flex-end;
+      }
+
+      .hud .stat {
+        background: rgba(0,0,0,0.35);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 8px 12px;
+        min-width: 120px;
+      }
+
+      .healthbar {
+        width: 240px;
+        height: 14px;
+        border-radius: 7px;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.2);
+        overflow: hidden;
+      }
+      .healthbar > div {
+        height: 100%;
+        width: 100%;
+        background: linear-gradient(90deg, #19d77c, #33ffa1);
+        transition: width 120ms linear;
+      }
+
+      .weapon-name {
+        font-weight: 600;
+        letter-spacing: 0.5px;
+      }
+
+      .ammo {
+        font-variant-numeric: tabular-nums;
+        font-size: 18px;
+      }
+
+      .weapon-wheel {
+        position: absolute;
+        left: 50%;
+        bottom: 120px;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 8px;
+        pointer-events: none;
+      }
+      .weapon-chip {
+        background: rgba(0,0,0,0.35);
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        opacity: 0.6;
+      }
+      .weapon-chip.active {
+        opacity: 1;
+        border-color: rgba(255,255,255,0.4);
+        box-shadow: 0 0 0 2px rgba(255,255,255,0.06) inset;
+      }
+
+      /* Crosshair */
+      .crosshair {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 18px;
+        height: 18px;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+      }
+      .crosshair:before, .crosshair:after {
+        content: "";
+        position: absolute;
+        background: rgba(255,255,255,0.9);
+      }
+      .crosshair:before { /* vertical */
+        left: 50%;
+        top: 0;
+        width: 2px;
+        height: 100%;
+        transform: translateX(-50%);
+      }
+      .crosshair:after { /* horizontal */
+        top: 50%;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        transform: translateY(-50%);
+      }
+
+      /* Lock overlay */
+      .overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at center, rgba(0,0,0,0.2), rgba(0,0,0,0.7));
+      }
+      .overlay.hidden {
+        display: none;
+      }
+      .overlay .panel {
+        background: rgba(0,0,0,0.55);
+        border: 1px solid rgba(255,255,255,0.15);
+        border-radius: 12px;
+        padding: 24px 28px;
+        max-width: 540px;
+        text-align: center;
+      }
+      .overlay .panel h1 {
+        margin: 0 0 8px 0;
+        font-size: 22px;
+      }
+      .overlay .panel p {
+        margin: 6px 0;
+        opacity: 0.9;
+      }
+      .overlay .panel button {
+        margin-top: 14px;
+        padding: 10px 16px;
+        background: #2b7cff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .overlay .panel code {
+        background: rgba(255,255,255,0.12);
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game">
+      <div class="overlay" id="overlay">
+        <div class="panel">
+          <h1>Large Map FPS</h1>
+          <p>Click start and use your mouse to look around.</p>
+          <p>
+            Move: <code>WASD</code> · Jump: <code>Space</code> · Sprint: <code>Shift</code> · Reload: <code>R</code><br/>
+            Shoot: <code>Left Click</code> · Switch Weapons: <code>1-6</code> or <code>Mouse Wheel</code>
+          </p>
+          <button id="startBtn">Click to Start</button>
+        </div>
+      </div>
+
+      <div class="crosshair"></div>
+
+      <div class="hud">
+        <div class="stats">
+          <div class="stat">
+            <div>Health</div>
+            <div class="healthbar"><div id="healthFill"></div></div>
+          </div>
+          <div class="stat">
+            <div class="weapon-name" id="weaponName">—</div>
+            <div class="ammo" id="ammo">0 / 0</div>
+          </div>
+        </div>
+        <div class="stat" id="statusText">Find and eliminate hostiles</div>
+      </div>
+
+      <div class="weapon-wheel" id="weaponWheel"></div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+  </html>
+
